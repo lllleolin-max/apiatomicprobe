@@ -109,3 +109,26 @@ digit length before bounded int conversion. Real5000-digit over-cap response is
 UNKNOWN, while5000 legal leading zeros followed by a small72-byte length still
 PASS. This real P3 is preserved but is not relied on to satisfy the five core
 correction histories or mislabeled as a main-model P2.
+
+## Round6: pending completion crossed its own quiesced wave witness
+
+Independent reviewer suggested that joint reads alone might allow a pending
+operation to complete after its own quiesced view. Implementer actual ordinary8a
+probe `probe_pending_wave_bound.py` confirmed it: wave0 ACK-lost request leaves
+no effect at acknowledged quiescence/native view; only wave1's different-key
+request in the faulty target then performs the old queued request plus its new
+order. Client records are untouched. The joint checker incorrectly PASS/CLI0
+by placing wave0's pending completion after its own zero-order witness.
+
+Correction makes each witness causally follow completion/omission of all of its
+quiesced operation prefix. Pending completion is at most once before its **own**
+wave witness, or permanently omitted. Search cannot move it into a later wave.
+The standalone factorial oracle separately constrains included operation
+positions to precede their own witness; it does not copy the mask/DFS algorithm.
+Same actual bad-target original before FAIL1 → successor COUNTEREXAMPLE/CLI3,
+plus actual unit and full SDK/CLI pilot verify the preserved initial contract.
+
+The first new probe invocation had a harness SyntaxError (missing space around
+else); its stderr is preserved. Corrected original runs on both immutable sides
+are the product evidence. The syntax error and oracle harness edits are not
+additional product correction cycles.

@@ -58,9 +58,13 @@ def check(initial, entries, final, *, search_nodes=100000, checkpoints=()):
         raise InputError('finite model supports at most12 operations')
     events = [dict(entry, kind='operation', index=index) for index, entry in enumerate(entries)]
     for index, checkpoint in enumerate(checkpoints):
-        events.append(dict(kind='witness', index=index, invocation_ns=checkpoint['begin_ns'], response_ns=checkpoint['captured_ns'], state=checkpoint['state']))
+        events.append(dict(kind='witness', index=index, invocation_ns=checkpoint['begin_ns'], response_ns=checkpoint['captured_ns'], state=checkpoint['state'],
+                           fenced_operations=checkpoint['operations']))
     predecessors = [sum(1 << j for j, previous in enumerate(events)
                         if previous['response_ns'] is not None and previous['response_ns'] < entry['invocation_ns']) for entry in events]
+    for i, event in enumerate(events):
+        if event['kind'] == 'witness':
+            predecessors[i] |= (1 << event['fenced_operations']) - 1
     nodes = 0
     exhausted = False
     memo = set()

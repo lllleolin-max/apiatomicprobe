@@ -37,6 +37,7 @@ dispatch. Actual fully consumed HTTP response gets response_ns; timeout/socket
 loss is pending, with a separate observation time. An HTTP close does not finish
 the business operation. Independent SQL witness time after quiescence bounds
 every pending operation: it may be omitted or legally complete at most once,
+before its **own** wave's acknowledged quiescence/native view, not a later wave.
 but cannot invent state outside the terminal accounts/inbox/orders/effects.
 Completed return before another call constrains real-time order. Every captured
 prefix is checked from the same initial state with **all** its prior SQL views

@@ -254,7 +254,7 @@ def analyze(directory):
             unknown = 'collection time allowance exceeded'
         if unknown:
             results.append(dict(status='UNKNOWN', reason=unknown, operations=len(entries))); break
-        checkpoints.append(dict(begin_ns=quiesced_ns, captured_ns=witness['captured_ns'], state=witness['state']))
+        checkpoints.append(dict(begin_ns=quiesced_ns, captured_ns=witness['captured_ns'], state=witness['state'], operations=len(entries)))
         result = check(initial, entries, witness['state'], search_nodes=remaining_nodes, checkpoints=checkpoints)
         remaining_nodes -= result['search_nodes']
         result.update(operations=len(entries), wave=wave_index)

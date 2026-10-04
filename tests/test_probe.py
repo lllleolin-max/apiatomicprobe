@@ -141,8 +141,8 @@ class ProbeTests(unittest.TestCase):
             second_obs = json.loads((directory / 'op-0001.observation.json').read_bytes())
             entries = [dict(operation=operation(drop_ack=True), invocation_ns=first_inv['invocation_ns'], response_ns=None, status=None, response_hex=''),
                        dict(operation=op, invocation_ns=second_inv['invocation_ns'], response_ns=second_obs['response_ns'], status=201, response_hex=response.hex())]
-            checkpoints = [dict(state=first['state'], begin_ns=first['captured_ns'], captured_ns=first['captured_ns']),
-                           dict(state=changed, begin_ns=final['captured_ns'], captured_ns=final['captured_ns'])]
+            checkpoints = [dict(state=first['state'], begin_ns=first['captured_ns'], captured_ns=first['captured_ns'], operations=1),
+                           dict(state=changed, begin_ns=final['captured_ns'], captured_ns=final['captured_ns'], operations=2)]
             self.assertEqual(check(initial, entries, changed, checkpoints=checkpoints)['status'], 'COUNTEREXAMPLE')
 
     def test_declared_pause_cannot_dispatch_after_total_allowance(self):
@@ -180,6 +180,20 @@ class ProbeTests(unittest.TestCase):
                     handler.respond = custom
                     result = collect(app.url, app.database, app.nonce, plan([[operation()]]), root / 'records', authorized=True)
                     self.assertEqual(result['status'], 'UNKNOWN' if prefix[0] == '9' else 'PASS')
+
+    def test_quiesced_pending_cannot_take_effect_after_its_own_native_view(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with Lab(root / 'app.db') as app:
+                correct = app.execute
+                def bad_application(tenant, key, body):
+                    if key == 'pending':
+                        return 201, canonical(dict(order_id='ord-00000001', tenant=tenant, sku=body['sku'], amount=body['amount']))
+                    correct(tenant, 'pending', dict(sku='widget', amount=100))
+                    return correct(tenant, key, body)
+                app.execute = bad_application
+                result = collect(app.url, app.database, app.nonce, plan([[operation(key='pending', drop_ack=True)], [operation(key='later', amount=200)]]), root / 'records', authorized=True)
+                self.assertEqual(result['status'], 'COUNTEREXAMPLE')
 
 
 if __name__ == '__main__':

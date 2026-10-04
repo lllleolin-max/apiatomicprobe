@@ -23,7 +23,8 @@ def witness_rows(state):
 def exhaustive(initial, entries, final, checkpoints=()):
     if len(entries) > 8:
         raise ValueError('independent factorial oracle is limited to8 operations')
-    entries = list(entries) + [dict(kind='witness', call=c['begin_ns'], **{'return': c['captured_ns']}, state=c['state']) for c in checkpoints]
+    operation_count = len(entries)
+    entries = list(entries) + [dict(kind='witness', call=c['begin_ns'], **{'return': c['captured_ns']}, state=c['state'], fenced_operations=c['operations']) for c in checkpoints]
     pending = [i for i, entry in enumerate(entries) if entry['return'] is None]
     mandatory = set(range(len(entries))) - set(pending)
     attempts = 0
@@ -62,6 +63,9 @@ def exhaustive(initial, entries, final, checkpoints=()):
         for order in itertools.permutations(selected):
             position = {index: rank for rank, index in enumerate(order)}
             if any(entries[a]['return'] is not None and entries[a]['return'] < entries[b]['call'] and position[a] > position[b] for a in selected for b in selected):
+                continue
+            if any(position[op] > position[read] for read in selected if entries[read].get('kind') == 'witness'
+                   for op in selected if op < operation_count and op < entries[read]['fenced_operations']):
                 continue
             states = [copy.deepcopy(initial)]
             for index in order:
@@ -120,7 +124,7 @@ def consume(directory):
             entries[-1]['return'] = entries[-1].pop('return_')
         final = witness['state']
         fence = json.loads((directory / f'control-{2+2*wave:04d}.observation.json').read_bytes())['response_ns']
-        checkpoints.append(dict(begin_ns=fence, captured_ns=witness['captured_ns'], state=final))
+        checkpoints.append(dict(begin_ns=fence, captured_ns=witness['captured_ns'], state=final, operations=len(entries)))
         prefixes.append(exhaustive(initial, entries, final, checkpoints))
     report = json.loads((directory / 'report.json').read_bytes())
     first_invalid = next((i for i, p in enumerate(prefixes) if p['status'] == 'COUNTEREXAMPLE'), None)
