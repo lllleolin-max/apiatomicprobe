@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "apiatomicprobe"
+version = "0.1.0"
+description = "Finite concurrent HTTP idempotency histories with native SQLite effect witnesses"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "ApiAtomicProbe contributors"}]
+readme = "README.md"
+
+[project.scripts]
+apiatomicprobe = "apiatomicprobe.cli:main"
+
+[tool.setuptools]
+packages = ["apiatomicprobe"]

@@ -1,0 +1,26 @@
+name: ordinary wheel and real HTTP consumer
+on: [push, pull_request]
+jobs:
+  installed:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip wheel --no-deps --wheel-dir dist .
+      - run: python -m pip install --no-index --find-links dist apiatomicprobe
+      - name: installed tests and actual CLI
+        shell: bash
+        run: |
+          mkdir installed-check
+          cd installed-check
+          python -I -m unittest discover -s ../tests -v
+          apiatomicprobe pilot pilot
+          python -I ../examples/verify_history.py pilot > consumer.json
+          apiatomicprobe analyze pilot/atomic/concurrent
+          python -c "import apiatomicprobe; print(apiatomicprobe.__file__)"
