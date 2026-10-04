@@ -1,5 +1,6 @@
 import copy
 import json
+import sqlite3
 from pathlib import Path
 import tempfile
 import unittest
@@ -143,6 +144,21 @@ class ProbeTests(unittest.TestCase):
             checkpoints = [dict(state=first['state'], begin_ns=first['captured_ns'], captured_ns=first['captured_ns']),
                            dict(state=changed, begin_ns=final['captured_ns'], captured_ns=final['captured_ns'])]
             self.assertEqual(check(initial, entries, changed, checkpoints=checkpoints)['status'], 'COUNTEREXAMPLE')
+
+    def test_declared_pause_cannot_dispatch_after_total_allowance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with Lab(root / 'app.db') as app:
+                declared = plan([[operation()]])
+                declared['max_duration_ms'] = 500; declared['waves'][0]['pause_ms'] = 1000
+                result = collect(app.url, app.database, app.nonce, declared, root / 'records', authorized=True)
+                self.assertEqual(result['status'], 'UNKNOWN')
+                connection = sqlite3.connect(app.database)
+                try:
+                    self.assertEqual(connection.execute('SELECT COUNT(*) FROM orders').fetchone()[0], 0)
+                    self.assertEqual(connection.execute("SELECT COUNT(*) FROM requests WHERE path='/orders'").fetchone()[0], 0)
+                finally:
+                    connection.close()
 
 
 if __name__ == '__main__':

@@ -93,6 +93,8 @@ def collect(url, database, nonce, plan, output, *, authorized=False):
                 raise InputError('collection time allowance exhausted')
             if wave['pause_ms']:
                 time.sleep(wave['pause_ms'] / 1000)
+            if time.monotonic_ns() >= deadline:
+                raise InputError('collection time allowance exhausted after declared pause')
             captured_control('resume')
             barrier = threading.Barrier(len(wave['operations']))
             def execute(index, operation):
@@ -107,6 +109,8 @@ def collect(url, database, nonce, plan, output, *, authorized=False):
                 headers = []
                 error = None
                 try:
+                    if time.monotonic_ns() >= deadline:
+                        raise InputError('collection time allowance exhausted before HTTP dispatch')
                     status, raw, headers = call(origin, '/orders', nonce, body, {'X-Tenant': operation['tenant'], 'Idempotency-Key': operation['key'],
                         'X-Drop-Ack': 'yes' if operation['drop_ack'] else 'no', 'X-Delay-Ms': str(operation['delay_ms'])}, timeout, plan['max_response_bytes'])
                     response_ns = time.monotonic_ns()

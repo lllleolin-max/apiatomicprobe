@@ -80,3 +80,21 @@ enumerates mandatory read events without importing the product search. The
 original real-target probe now requires COUNTEREXAMPLE/CLI3; ordinary wheel
 before/after and all prior probes are preserved externally. The model unit test
 is additional coverage, not the original discovery evidence or a separate round.
+
+## Round5: declared pause consumed budget but fresh POST still dispatched
+
+Before exact8a59cdde6436fafd840dc048119145592b4f519d ordinary wheel,
+`probe_pause_budget.py` uses a valid500ms total allowance and valid1000ms wave
+pause. Initial quiesce finishes well within500ms, then the real pause exhausts
+the allowance. The collector still resumes/submits a new order and only returns
+UNKNOWN after committing it. Actual native requests and orders prove arrival1
+and effect1; no time or receipt is edited. Cooperative draining of in-flight
+unknown work does not justify dispatching a new business call after this known
+planned wait exhausted the allowance.
+
+Correction rechecks after each planned pause and immediately before each HTTP
+dispatch, including time consumed by durable intent I/O. The same original
+ordinary-wheel probe must return UNKNOWN with actual arrivals0/orders0. Already
+dispatched work still drains for effects; no hard wall-clock promise is added.
+The actual pause/SQL counter unit test covers the boundary. Other original
+findings remain preserved and are not recounted as new rounds.

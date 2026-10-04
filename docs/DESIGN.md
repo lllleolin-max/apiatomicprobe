@@ -62,6 +62,9 @@ raw intents/responses and are UNKNOWN without complete quiesced terminal proof.
 There is no retry after collector crash: rerun creates a new disposable session.
 Byte/time limits are cooperative, not RSS/CPU/process or power-loss guarantees;
 control drains may exceed per-request observation timeout. Existing captured
+New business dispatch checks the total allowance after declared pauses and
+after durable intent I/O. Draining an already dispatched operation is allowed
+to overshoot; an expired known allowance prevents fresh business calls.
 prefix counterexamples remain useful if later collection is incomplete. A PASS
 requires the complete declared schedule and all terminal witness prefixes.
 Completion records have strict operations/waves/end_ns members, integer counts
