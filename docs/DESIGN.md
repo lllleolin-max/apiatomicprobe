@@ -40,6 +40,10 @@ every pending operation: it may be omitted or legally complete at most once,
 but cannot invent state outside the terminal accounts/inbox/orders/effects.
 Completed return before another call constrains real-time order. Every captured
 prefix is checked from the same initial state and its own terminal SQL view.
+Control receipts are independently length/hash/identity checked: initial quiesce
+precedes the initial view, resume precedes each wave invocation, every operation
+observation precedes terminal quiesce, and its actual return precedes the SQL
+capture. No final-index shortcut replaces the maximum of a concurrent wave.
 
 Search is memoized exhaustive DFS over eligible operations, legal pending
 alternatives and omitted pending branches. A completed operation must match its

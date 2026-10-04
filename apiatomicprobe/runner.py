@@ -143,8 +143,27 @@ def analyze(directory):
     integer(session['start_ns'], 'start_ns', 0, 2**63-1)
     if not (directory / 'initial.json').is_file():
         return dict(status='UNKNOWN', reason='no initial native witness', finite_history_only=True)
+    def control_receipt(index, action, lower):
+        prefix = directory / f'control-{index:04d}'
+        inv = read_json(Path(str(prefix) + '.invocation.json'))
+        obs = read_json(Path(str(prefix) + '.observation.json'))
+        keys(inv, ('action', 'invocation_ns'))
+        keys(obs, ('status', 'response_ns', 'response_bytes', 'response_sha256', 'headers'))
+        if inv['action'] != action or obs['status'] != 200 or type(obs['status']) is not int:
+            raise InputError('unsupported quiesce/resume receipt')
+        integer(inv['invocation_ns'], 'control invocation_ns', lower, 2**63-1)
+        integer(obs['response_ns'], 'control response_ns', inv['invocation_ns'], 2**63-1)
+        integer(obs['response_bytes'], 'control response_bytes', 0, 4096)
+        response = Path(str(prefix) + '.response')
+        if response.stat().st_size > 4096 or Path(str(prefix) + '.request').read_bytes() != b'':
+            raise InputError('unsupported raw control bytes')
+        raw = response.read_bytes()
+        if len(raw) != obs['response_bytes'] or sha(raw) != obs['response_sha256'] or raw != canonical(dict(nonce=session['nonce'], state=action)):
+            raise InputError('quiesce/resume response differs from complete recorded bytes')
+        return obs['response_ns']
     initial_receipt = read_json(directory / 'initial.json')
     keys(initial_receipt, ('state', 'captured_ns'))
+    integer(initial_receipt['captured_ns'], 'initial captured_ns', control_receipt(0, 'quiesce', session['start_ns']), 2**63-1)
     initial = initial_receipt['state']; validate_state(initial)
     if initial['nonce'] != session['nonce']:
         raise InputError('initial witness session mismatch')
@@ -153,9 +172,12 @@ def analyze(directory):
     remaining_nodes = plan['search_nodes']
     planned = [op for wave in plan['waves'] for op in wave['operations']]
     unknown = None
+    previous_capture = initial_receipt['captured_ns']
     for wave_index, wave in enumerate(plan['waves']):
         if not (directory / f'witness-{wave_index:04d}.json').is_file():
             unknown = 'missing quiesced terminal witness'; break
+        resumed_ns = control_receipt(1 + 2 * wave_index, 'resume', previous_capture)
+        latest_observation = resumed_ns
         for op in wave['operations']:
             index = len(entries)
             inv = read_json(directory / f'op-{index:04d}.invocation.json')
@@ -177,8 +199,9 @@ def analyze(directory):
             integer(obs['response_bytes'], 'response_bytes', 0, plan['max_response_bytes'])
             if len(raw) != obs['response_bytes'] or sha(raw) != obs['response_sha256']:
                 raise InputError('response differs from recorded complete bytes')
-            integer(inv['invocation_ns'], 'invocation_ns', initial_receipt['captured_ns'], 2**63-1)
+            integer(inv['invocation_ns'], 'invocation_ns', resumed_ns, 2**63-1)
             integer(obs['observation_ns'], 'observation_ns', inv['invocation_ns'], 2**63-1)
+            latest_observation = max(latest_observation, obs['observation_ns'])
             if obs['response_ns'] is not None:
                 integer(obs['response_ns'], 'response_ns', inv['invocation_ns'], obs['observation_ns'])
                 try:
@@ -190,7 +213,9 @@ def analyze(directory):
             entries.append(dict(operation=op, invocation_ns=inv['invocation_ns'], response_ns=obs['response_ns'], status=obs['status'], response_hex=raw.hex()))
         witness = read_json(directory / f'witness-{wave_index:04d}.json')
         keys(witness, ('state', 'captured_ns', 'operations'))
-        integer(witness['captured_ns'], 'captured_ns', max(obs['observation_ns'], inv['invocation_ns']), 2**63-1)
+        quiesced_ns = control_receipt(2 + 2 * wave_index, 'quiesce', latest_observation)
+        integer(witness['captured_ns'], 'captured_ns', quiesced_ns, 2**63-1)
+        previous_capture = witness['captured_ns']
         if witness['operations'] != len(entries):
             raise InputError('witness operation prefix mismatch')
         validate_state(witness['state'])

@@ -1,4 +1,5 @@
 import copy
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -75,6 +76,21 @@ class ProbeTests(unittest.TestCase):
             (root / 'records/op-0000.response').write_bytes(b'changed')
             with self.assertRaises(InputError):
                 analyze(root / 'records')
+
+    def test_witness_clock_and_every_control_boundary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with Lab(root / 'app.db') as app:
+                directory = root / 'records'
+                collect(app.url, app.database, app.nonce, plan([[operation(key='late', delay_ms=100), operation(key='early')]]), directory, authorized=True)
+            path = directory / 'witness-0000.json'; receipt = json.loads(path.read_bytes())
+            fence = json.loads((directory / 'control-0002.observation.json').read_bytes())['response_ns']
+            for offset in (1, 0):
+                receipt['captured_ns'] = fence + offset; path.write_bytes(canonical(receipt))
+                self.assertEqual(analyze(directory)['status'], 'PASS')
+            receipt['captured_ns'] = fence - 1; path.write_bytes(canonical(receipt))
+            with self.assertRaises(InputError):
+                analyze(directory)
 
 
 if __name__ == '__main__':
