@@ -92,6 +92,25 @@ class ProbeTests(unittest.TestCase):
             with self.assertRaises(InputError):
                 analyze(directory)
 
+    def test_completion_counts_type_and_total_nanosecond_edges(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with Lab(root / 'app.db') as app:
+                directory = root / 'records'; declared = plan([[operation()]])
+                collect(app.url, app.database, app.nonce, declared, directory, authorized=True)
+            path = directory / 'complete.json'; original = json.loads(path.read_bytes())
+            for count in (0, 2, True):
+                changed = dict(original, operations=count); path.write_bytes(canonical(changed))
+                with self.assertRaises(InputError):
+                    analyze(directory)
+            start = json.loads((directory / 'session.json').read_bytes())['start_ns']
+            for offset in (-1, 0, 1):
+                changed = dict(original, end_ns=start + declared['max_duration_ms']*1000000 + offset)
+                path.write_bytes(canonical(changed))
+                self.assertEqual(analyze(directory)['status'], 'UNKNOWN' if offset == 1 else 'PASS')
+            path.write_bytes(b'{')
+            self.assertEqual(analyze(directory)['status'], 'UNKNOWN')
+
 
 if __name__ == '__main__':
     unittest.main()

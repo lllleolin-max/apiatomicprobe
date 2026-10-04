@@ -62,6 +62,10 @@ Byte/time limits are cooperative, not RSS/CPU/process or power-loss guarantees;
 control drains may exceed per-request observation timeout. Existing captured
 prefix counterexamples remain useful if later collection is incomplete. A PASS
 requires the complete declared schedule and all terminal witness prefixes.
+Completion records have strict operations/waves/end_ns members, integer counts
+equal to the full preregistered plan and client end time after captures. Marker
+existence alone is insufficient; malformed partial markers and over-allowance
+completion are UNKNOWN, contradictory typed counts refuse.
 An insufficient supported response (unexpected status/encoding) is UNKNOWN.
 
 Trusted files/host may be corrupted detectably, but this is not a hostile

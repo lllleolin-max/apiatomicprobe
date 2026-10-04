@@ -141,6 +141,18 @@ def analyze(directory):
         raise InputError('unsupported session version')
     endpoint(session['url'])
     integer(session['start_ns'], 'start_ns', 0, 2**63-1)
+    completion = None
+    if (directory / 'complete.json').is_file():
+        try:
+            completion = read_json(directory / 'complete.json')
+        except InputError:
+            return dict(status='UNKNOWN', reason='malformed or interrupted completion marker', finite_history_only=True)
+        keys(completion, ('operations', 'waves', 'end_ns'))
+        integer(completion['operations'], 'completed operations', 0, 12)
+        integer(completion['waves'], 'completed waves', 0, 12)
+        integer(completion['end_ns'], 'completion end_ns', session['start_ns'], 2**63-1)
+        if completion['operations'] != sum(len(w['operations']) for w in plan['waves']) or completion['waves'] != len(plan['waves']):
+            raise InputError('completion counts differ from the complete declared schedule')
     if not (directory / 'initial.json').is_file():
         return dict(status='UNKNOWN', reason='no initial native witness', finite_history_only=True)
     def control_receipt(index, action, lower):
@@ -164,6 +176,8 @@ def analyze(directory):
     initial_receipt = read_json(directory / 'initial.json')
     keys(initial_receipt, ('state', 'captured_ns'))
     integer(initial_receipt['captured_ns'], 'initial captured_ns', control_receipt(0, 'quiesce', session['start_ns']), 2**63-1)
+    if completion is not None:
+        integer(completion['end_ns'], 'completion end_ns', initial_receipt['captured_ns'], 2**63-1)
     initial = initial_receipt['state']; validate_state(initial)
     if initial['nonce'] != session['nonce']:
         raise InputError('initial witness session mismatch')
@@ -216,12 +230,14 @@ def analyze(directory):
         quiesced_ns = control_receipt(2 + 2 * wave_index, 'quiesce', latest_observation)
         integer(witness['captured_ns'], 'captured_ns', quiesced_ns, 2**63-1)
         previous_capture = witness['captured_ns']
+        if completion is not None:
+            integer(completion['end_ns'], 'completion end_ns', previous_capture, 2**63-1)
         if witness['operations'] != len(entries):
             raise InputError('witness operation prefix mismatch')
         validate_state(witness['state'])
         if (witness['captured_ns'] - initial_receipt['captured_ns']) > initial['retention_seconds'] * 10**9:
             unknown = 'history exceeds declared no-expiry retention model'
-        if witness['captured_ns'] - session['start_ns'] > plan['max_duration_ms'] * 1000000:
+        if witness['captured_ns'] - session['start_ns'] > plan['max_duration_ms'] * 1000000 or (completion is not None and completion['end_ns'] - session['start_ns'] > plan['max_duration_ms'] * 1000000):
             unknown = 'collection time allowance exceeded'
         if unknown:
             results.append(dict(status='UNKNOWN', reason=unknown, operations=len(entries))); break
@@ -231,7 +247,7 @@ def analyze(directory):
         results.append(result)
         if result['status'] != 'PASS':
             break
-    complete = (directory / 'complete.json').is_file() and len(entries) == len(planned) and len(results) == len(plan['waves'])
+    complete = completion is not None and len(entries) == len(planned) and len(results) == len(plan['waves'])
     status = results[-1]['status'] if results else 'UNKNOWN'
     if status == 'PASS' and not complete:
         status = 'UNKNOWN'

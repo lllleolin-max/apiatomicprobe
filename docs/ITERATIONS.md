@@ -25,3 +25,20 @@ terminal quiesce-before-native-capture bound. The unsupported clock refuses via
 InputError/CLI2. Targeted actual-child witness nanosecond+1/equality/-1 verifies
 the causal boundary. Unchanged original probe after ordinary wheel is retained
 outside repo with exact after SHA and full logs.
+
+## Round2: completion declaration was not parsed
+
+Before first baseline4d (also replayed after round1), actual one-order collection
+produced its SQL effect and legitimate completion operations1/waves1/end_ns.
+`probe_complete_count.py` changed only complete.operations to0, preserving every
+real clock/body/state and all other receipt bytes. SDK/registered CLI still
+returned PASS/0 because only the marker's existence was checked. Root suggested
+the review hypothesis, implementation independently confirmed ordinary-wheel
+FAIL. No request timing is invented by this original probe.
+
+Correction reads strict completion schema/types, matches declared total calls
+and waves, requires end_ns after all checked native captures, and keeps an
+over-total-time completion UNKNOWN. An interrupted malformed marker also stays
+UNKNOWN. Actual collection-derived tests cover counts±1/bool and hypothetical
+completion time deadline±1/equality without portraying edited timing as a lab
+speed result. The original unchanged before/after probe is recorded externally.
