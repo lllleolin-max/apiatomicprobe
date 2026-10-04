@@ -112,8 +112,9 @@ def preflight(db, output):
 
 def snapshot(db, nonce, row_cap=1000, byte_cap=1048576):
     """Caller has quiesced the dedicated target; read all tables in one view."""
-    connection = sqlite3.connect(Path(db).resolve().as_uri() + '?mode=ro', uri=True)
+    connection = None
     try:
+        connection = sqlite3.connect(Path(db).resolve().as_uri() + '?mode=ro', uri=True)
         connection.execute('PRAGMA query_only=ON')
         connection.execute('BEGIN')
         meta = dict(connection.execute('SELECT name,value FROM metadata'))
@@ -143,7 +144,8 @@ def snapshot(db, nonce, row_cap=1000, byte_cap=1048576):
     except (sqlite3.Error, ValueError, TypeError) as error:
         raise InputError('unsupported or unreadable native witness') from error
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()
 
 
 def validate_state(state):

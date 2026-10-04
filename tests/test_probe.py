@@ -195,6 +195,11 @@ class ProbeTests(unittest.TestCase):
                 result = collect(app.url, app.database, app.nonce, plan([[operation(key='pending', drop_ack=True)], [operation(key='later', amount=200)]]), root / 'records', authorized=True)
                 self.assertEqual(result['status'], 'COUNTEREXAMPLE')
 
+    def test_native_connection_open_failure_is_controlled(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(InputError):
+                snapshot(Path(temporary) / 'does-not-exist.db', '0' * 32)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -132,3 +132,15 @@ The first new probe invocation had a harness SyntaxError (missing space around
 else); its stderr is preserved. Corrected original runs on both immutable sides
 are the product evidence. The syntax error and oracle harness edits are not
 additional product correction cycles.
+
+## Additional P3 source-open I/O correction
+
+Actual Windows CreateFileW share=0 blocked source database reading at ordinary
+8a. Public SDK escaped sqlite3.OperationalError and registered CLI printed a
+traceback/exit1, although no output or HTTP arrival occurred. The connect call
+was outside the native witness try/finally. It now uses the same controlled
+InputError as native query/read errors, with close only if opened; CLI refuses2
+before dispatch. `probe_source_read_lock.py` preserves the genuine original
+Windows SDK/registeredCLI FAIL→PASS, and a real missing-file mode=ro open test
+works on both CI platforms. This is an additional non-core I/O classification
+correction, not relied on for the six main histories.
