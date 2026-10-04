@@ -200,6 +200,55 @@ class ProbeTests(unittest.TestCase):
             with self.assertRaises(InputError):
                 snapshot(Path(temporary) / 'does-not-exist.db', '0' * 32)
 
+    def test_actual_response_content_codings_preserve_raw_observations(self):
+        for codings, expected in (([], 'PASS'), (['IdEnTiTy'], 'PASS'),
+                                  (['identity, IDENTITY', 'identity'], 'PASS'), (['gzip'], 'UNKNOWN')):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with Lab(root / 'app.db') as app:
+                    original = app.server.RequestHandlerClass
+                    class Handler(original):
+                        def respond(self, status, body):
+                            if self.path != '/orders':
+                                return super().respond(status, body)
+                            self.send_response(status)
+                            for coding in codings:
+                                self.send_header('cOnTeNt-EnCoDiNg', coding)
+                            self.send_header('Content-Length', str(len(body)))
+                            self.send_header('Connection', 'close'); self.end_headers()
+                            self.wfile.write(body); self.close_connection = True
+                    app.server.RequestHandlerClass = Handler
+                    result = collect(app.url, app.database, app.nonce, plan([[operation()]]), root / 'records', authorized=True)
+                self.assertEqual(result['status'], expected)
+                self.assertEqual(analyze(root / 'records'), result)
+                observation = json.loads((root / 'records/op-0000.observation.json').read_bytes())
+                raw = (root / 'records/op-0000.response').read_bytes()
+                self.assertIsNotNone(observation['response_ns'])
+                self.assertEqual(observation['response_bytes'], len(raw))
+                self.assertEqual([value for name, value in observation['response_headers'] if name.lower() == 'content-encoding'], codings)
+                self.assertEqual(parse(raw)['amount'], 100)
+
+    def test_reanalysis_coding_framing_and_control_headers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with Lab(root / 'app.db') as app:
+                directory = root / 'records'
+                self.assertEqual(collect(app.url, app.database, app.nonce, plan([[operation()]]), directory, authorized=True)['status'], 'PASS')
+            path = directory / 'op-0000.observation.json'; original = json.loads(path.read_bytes())
+            for extra in ([['Content-Encoding', 'gzip']], [['Transfer-Encoding', 'chunked']], [['Content-Length', '72']]):
+                changed = copy.deepcopy(original); changed['response_headers'] += extra
+                path.write_bytes(canonical(changed))
+                self.assertEqual(analyze(directory)['status'], 'UNKNOWN')
+            changed = copy.deepcopy(original)
+            changed['response_headers'] = [[name, '73' if name.lower() == 'content-length' else value] for name, value in changed['response_headers']]
+            path.write_bytes(canonical(changed))
+            self.assertEqual(analyze(directory)['status'], 'UNKNOWN')
+            path.write_bytes(canonical(original))
+            control_path = directory / 'control-0000.observation.json'
+            changed = json.loads(control_path.read_bytes()); changed['headers'] += [['Content-Encoding', 'gzip']]
+            control_path.write_bytes(canonical(changed))
+            self.assertEqual(analyze(directory)['status'], 'UNKNOWN')
+
 
 if __name__ == '__main__':
     unittest.main()

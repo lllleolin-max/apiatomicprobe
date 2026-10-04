@@ -144,3 +144,32 @@ before dispatch. `probe_source_read_lock.py` preserves the genuine original
 Windows SDK/registeredCLI FAIL→PASS, and a real missing-file mode=ro open test
 works on both CI platforms. This is an additional non-core I/O classification
 correction, not relied on for the six main histories.
+
+## Round7: declared representation coding ignored in real HTTP responses
+
+Independent reviewer ordinary640160b4bbd2507885a7642695a79b207c989bb0 found
+Content-Encoding:gzip with actual uncompressed canonical72-byte response wrongly
+PASS/registeredCLI0, contrary to the initial unexpected-encoding UNKNOWN
+contract. The product collected and saved that gzip header but analyzed only
+body bytes. The original byte-identical independent probe SHA256
+2f66d45668afe1280789ae0fd46002b4c3007abbd7aab3020a03231d6496c6cf was copied
+into a new successor evidence directory; implementer exact ordinary640 rerun
+exits1 with normalPASS, mislabeled gzip/rawPASS, genuine gzipbytesUNKNOWN. Each
+case uses the explicitly owned disposable invoice/order application, real HTTP,
+and native four-table transaction reads with exactly one100-cent order/effect.
+No target outside this local laboratory is called; no recorded receipts are
+altered in the original probe. The old freeze/failed evidence is retained.
+
+Correction validates preserved response headers and representation coding on
+both collection analysis and reanalysis. It retains actual rawbody/headers and
+completion clock when a bounded response arrived, then reports unsupported
+coding UNKNOWN instead of using SQL to invent a supported response. Identity
+no-transform values are tolerated case-insensitively across repeated/list fields;
+gzip or another transform remains outside the original identity-only adapter.
+Control acknowledgements and Content-Length/Transfer-Encoding framing are
+validated consistently with saved operation receipts. The ordinary successor
+must pass the unchanged independent probe, all six original core/P3 regressions,
+and the actual native/factorial consumer. New targeted real-header/reanalysis
+tests add coverage; they are not separate correction cycles. This preserves the
+initial contract without claiming compressed-response support or changing the
+finite business/linearization model.

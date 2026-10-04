@@ -73,6 +73,22 @@ equal to the full preregistered plan and client end time after captures. Marker
 existence alone is insufficient; malformed partial markers and over-allowance
 completion are UNKNOWN, contradictory typed counts refuse.
 An insufficient supported response (unexpected status/encoding) is UNKNOWN.
+The identity-only response adapter requests Accept-Encoding: identity. It
+preserves every original repeated response header and bounded fully consumed
+body before evaluating representation support. Missing Content-Encoding or
+explicit identity tokens (case-insensitive, including repeated/list fields)
+mean no transformation; any other coding, malformed field collection, empty
+coding list, or contradictory framing is outside the adapter and UNKNOWN.
+RFC9110 discourages sending identity in Content-Encoding, but this finite lab
+adapter tolerates that explicit no-transform value; it does not decode gzip.
+Both collection and saved-receipt analysis require a single decimal
+Content-Length, no Transfer-Encoding, and exact agreement with the preserved
+body length. Other framing is outside the original single-length adapter.
+Recorded control response metadata is checked before its acknowledgement can
+establish quiescence. Native SQL effects never override unsupported HTTP
+representation evidence. See RFC9110 sections5.2/8.4/12.5.3 and RFC9112 section6.3,
+checked2026-10-05. Header syntax checks are a finite protocol gate, not a general
+HTTP interoperability or security claim.
 Known unsupported framing/byte-cap/parser observations are also UNKNOWN; they
 are not erased into the transport-lost-ACK branch to invent a supported response
 from SQL. A genuine network timeout/closed socket retains its pending semantics.

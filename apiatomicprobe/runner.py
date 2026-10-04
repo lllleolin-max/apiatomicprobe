@@ -30,28 +30,68 @@ def endpoint(url):
         raise InputError('invalid loopback origin') from error
 
 
+class _UnsupportedResponse(InputError):
+    """A recorded control representation cannot establish supported quiescence."""
+
+
+def _header_values(headers):
+    if not isinstance(headers, (list, tuple)) or len(headers) > 100:
+        raise InputError('unsupported response header collection')
+    values = {}
+    for pair in headers:
+        if (not isinstance(pair, (list, tuple)) or len(pair) != 2 or
+                not isinstance(pair[0], str) or not isinstance(pair[1], str) or
+                re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", pair[0]) is None or
+                any(ord(c) < 32 and c != '\t' or ord(c) == 127 for c in pair[1])):
+            raise InputError('unsupported recorded response header field')
+        values.setdefault(pair[0].lower(), []).append(pair[1])
+    return values
+
+
+def _response_length(headers, cap):
+    values = _header_values(headers)
+    lengths = values.get('content-length', [])
+    if len(lengths) != 1 or 'transfer-encoding' in values or re.fullmatch(r'[0-9]+', lengths[0]) is None:
+        raise InputError('response framing/byte allowance unsupported')
+    significant = lengths[0].lstrip('0') or '0'
+    if len(significant) > len(str(cap)) or int(significant) > cap:
+        raise InputError('response framing/byte allowance unsupported')
+    return int(significant)
+
+
+def _validate_response_headers(headers, cap, size):
+    if _response_length(headers, cap) != size:
+        raise InputError('recorded response Content-Length differs from complete bytes')
+    values = _header_values(headers)
+    if 'content-encoding' in values:
+        # RFC list fields combine repeated lines; content coding names ignore case.
+        # Explicit identity is tolerated as no transform, though RFC discourages
+        # sending it in Content-Encoding. No compressed representation is decoded.
+        tokens = [part.strip(' \t').lower() for value in values['content-encoding'] for part in value.split(',') if part.strip(' \t')]
+        if not tokens or len(tokens) > 100 or any(token != 'identity' for token in tokens):
+            raise InputError('response content coding outside identity-only adapter')
+
+
 def call(origin, path, nonce, raw, headers, timeout, cap):
     connection = HTTPConnection(*origin, timeout=timeout)
     try:
-        connection.request('POST', path, raw, headers={'X-Lab-Nonce': nonce, 'Content-Type': 'application/json', 'Connection': 'close', **headers})
+        connection.request('POST', path, raw, headers={'X-Lab-Nonce': nonce, 'Content-Type': 'application/json', 'Accept-Encoding': 'identity', 'Connection': 'close', **headers})
         response = connection.getresponse()
-        declared = response.getheader('Content-Length')
-        if declared is None or re.fullmatch(r'[0-9]+', declared) is None:
-            raise InputError('response framing/byte allowance unsupported')
-        significant = declared.lstrip('0') or '0'
-        if len(significant) > len(str(cap)) or int(significant) > cap:
-            raise InputError('response framing/byte allowance unsupported')
-        declared_size = int(significant)
+        response_headers = response.getheaders()
+        declared_size = _response_length(response_headers, cap)
         body = response.read(cap + 1)
         if len(body) != declared_size or len(body) > cap:
             raise InputError('truncated or oversized response')
-        return response.status, body, response.getheaders()
+        # Return bounded, actually consumed bytes and original repeated headers.
+        # Representation support is checked after persistence and on reanalysis.
+        return response.status, body, response_headers
     finally:
         connection.close()
 
 
 def control(origin, action, nonce, timeout):
-    status, raw, _ = call(origin, '/' + action, nonce, b'', {}, timeout, 4096)
+    status, raw, headers = call(origin, '/' + action, nonce, b'', {}, timeout, 4096)
+    _validate_response_headers(headers, 4096, len(raw))
     if status != 200 or parse(raw) != dict(nonce=nonce, state=action):
         raise InputError('target did not acknowledge quiesce/resume session')
 
@@ -85,6 +125,7 @@ def collect(url, database, nonce, plan, output, *, authorized=False):
         returned = time.monotonic_ns()
         persist(Path(str(prefix) + '.response'), raw)
         persist(Path(str(prefix) + '.observation.json'), canonical(dict(status=status, response_ns=returned, response_bytes=len(raw), response_sha256=sha(raw), headers=headers)))
+        _validate_response_headers(headers, 4096, len(raw))
         if status != 200 or parse(raw) != dict(nonce=nonce, state=action):
             raise InputError('target did not acknowledge quiesce/resume session')
     try:
@@ -141,6 +182,13 @@ def collect(url, database, nonce, plan, output, *, authorized=False):
 
 
 def analyze(directory):
+    try:
+        return _analyze(directory)
+    except _UnsupportedResponse as failure:
+        return dict(status='UNKNOWN', reason=str(failure), finite_history_only=True)
+
+
+def _analyze(directory):
     directory = Path(directory).resolve()
     plan = validate_plan(read_json(directory / 'plan.json'))
     session = read_json(directory / 'session.json')
@@ -180,6 +228,10 @@ def analyze(directory):
         raw = response.read_bytes()
         if len(raw) != obs['response_bytes'] or sha(raw) != obs['response_sha256'] or raw != canonical(dict(nonce=session['nonce'], state=action)):
             raise InputError('quiesce/resume response differs from complete recorded bytes')
+        try:
+            _validate_response_headers(obs['headers'], 4096, len(raw))
+        except InputError as failure:
+            raise _UnsupportedResponse('recorded control HTTP representation unsupported: ' + str(failure)) from failure
         return obs['response_ns']
     initial_receipt = read_json(directory / 'initial.json')
     keys(initial_receipt, ('state', 'captured_ns'))
@@ -228,6 +280,7 @@ def analyze(directory):
             if obs['response_ns'] is not None:
                 integer(obs['response_ns'], 'response_ns', inv['invocation_ns'], obs['observation_ns'])
                 try:
+                    _validate_response_headers(obs['response_headers'], plan['max_response_bytes'], len(raw))
                     validate_response(obs['status'], raw)
                 except InputError:
                     unknown = 'completed HTTP response outside supported order-lab semantics'
@@ -235,6 +288,8 @@ def analyze(directory):
                     raise InputError('completed response also claims an observation failure')
             elif obs['status'] is not None or raw or not isinstance(obs['error'], str):
                 raise InputError('inconsistent pending observation')
+            elif obs['response_headers']:
+                unknown = 'pending observation contains unsupported recorded HTTP metadata'
             elif obs['error'].startswith(('InputError:', 'BadStatusLine:', 'IncompleteRead:', 'LineTooLong:', 'HTTPException:')):
                 unknown = 'observed HTTP protocol/framing/byte allowance is outside supported semantics'
             entries.append(dict(operation=op, invocation_ns=inv['invocation_ns'], response_ns=obs['response_ns'], status=obs['status'], response_hex=raw.hex()))
