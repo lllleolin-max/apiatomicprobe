@@ -98,3 +98,14 @@ ordinary-wheel probe must return UNKNOWN with actual arrivals0/orders0. Already
 dispatched work still drains for effects; no hard wall-clock promise is added.
 The actual pause/SQL counter unit test covers the boundary. Other original
 findings remain preserved and are not recounted as new rounds.
+
+## Additional P3 header compatibility correction
+
+Root suggested a huge numeric header hypothesis. Actual ordinary8a HTTP probe
+`probe_huge_content_length.py` confirmed that Content-Length9 repeated5000 times
+escaped collect as Python ValueError instead of recording unsupported protocol
+UNKNOWN. Decimal conversion now removes legal leading zeros and checks effective
+digit length before bounded int conversion. Real5000-digit over-cap response is
+UNKNOWN, while5000 legal leading zeros followed by a small72-byte length still
+PASS. This real P3 is preserved but is not relied on to satisfy the five core
+correction histories or mislabeled as a main-model P2.

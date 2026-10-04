@@ -36,10 +36,14 @@ def call(origin, path, nonce, raw, headers, timeout, cap):
         connection.request('POST', path, raw, headers={'X-Lab-Nonce': nonce, 'Content-Type': 'application/json', 'Connection': 'close', **headers})
         response = connection.getresponse()
         declared = response.getheader('Content-Length')
-        if declared is None or re.fullmatch(r'[0-9]+', declared) is None or int(declared) > cap:
+        if declared is None or re.fullmatch(r'[0-9]+', declared) is None:
             raise InputError('response framing/byte allowance unsupported')
+        significant = declared.lstrip('0') or '0'
+        if len(significant) > len(str(cap)) or int(significant) > cap:
+            raise InputError('response framing/byte allowance unsupported')
+        declared_size = int(significant)
         body = response.read(cap + 1)
-        if len(body) != int(declared) or len(body) > cap:
+        if len(body) != declared_size or len(body) > cap:
             raise InputError('truncated or oversized response')
         return response.status, body, response.getheaders()
     finally:

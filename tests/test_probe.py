@@ -160,6 +160,27 @@ class ProbeTests(unittest.TestCase):
                 finally:
                     connection.close()
 
+    def test_http_content_length_large_digits_and_legal_leading_zeros(self):
+        for prefix in ('9' * 5000, '0' * 5000):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                with Lab(root / 'app.db') as app:
+                    handler = app.server.RequestHandlerClass; original = handler.respond
+                    def custom(self, status, body):
+                        if status != 201:
+                            return original(self, status, body)
+                        self.send_response(status)
+                        self.send_header('Content-Length', prefix if prefix[0] == '9' else prefix + str(len(body)))
+                        self.send_header('Connection', 'close'); self.end_headers()
+                        try:
+                            self.wfile.write(body)
+                        except OSError:
+                            pass
+                        self.close_connection = True
+                    handler.respond = custom
+                    result = collect(app.url, app.database, app.nonce, plan([[operation()]]), root / 'records', authorized=True)
+                    self.assertEqual(result['status'], 'UNKNOWN' if prefix[0] == '9' else 'PASS')
+
 
 if __name__ == '__main__':
     unittest.main()
