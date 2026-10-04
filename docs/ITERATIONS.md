@@ -59,3 +59,24 @@ an unconstrained pending response. Genuine timeout/socket ACK loss remains
 pending and can still PASS with a matching witnessed completion. Completed
 responses cannot also claim a failure. Actual response bytes-1/equal/+1 tests
 and unchanged original72-byte/1-cap ordinary-wheel probe verify the distinction.
+
+## Round4: independently plausible prefixes had incompatible pending choices
+
+After the three input/observation fixes, deeper model review found a core issue.
+`probe_joint_witness.py` uses a genuinely faulty HTTP application: first dropped
+ACK still commits order1 amount100; its native wave0 witness records that order.
+The second same-key amount200 request wrongly rewrites the existing order,
+inbox/effect/balance and returns201, with conservation preserved. No client
+receipt/timestamp/body is edited. Baseline ordinary wheel (and round3 replay)
+incorrectly PASS: first prefix explains pending as completed100, final prefix
+changes that same pending choice to omitted and calls the second request a fresh
+creation200. One history cannot make both native views true under the model.
+
+Correction places every captured native view in the **same** linearization as
+a read event with its quiesce-return/capture interval. Past reads constrain the
+state and pending disposition across later prefixes. Operation and read event
+real-time precedence share one node budget. The standalone factorial oracle also
+enumerates mandatory read events without importing the product search. The
+original real-target probe now requires COUNTEREXAMPLE/CLI3; ordinary wheel
+before/after and all prior probes are preserved externally. The model unit test
+is additional coverage, not the original discovery evidence or a separate round.

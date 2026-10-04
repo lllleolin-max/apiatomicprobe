@@ -50,14 +50,17 @@ def alternatives(state, entry, final):
     return options
 
 
-def check(initial, entries, final, *, search_nodes=100000):
+def check(initial, entries, final, *, search_nodes=100000, checkpoints=()):
     validate_state(initial); validate_state(final)
     if initial['nonce'] != final['nonce'] or initial['retention_seconds'] != final['retention_seconds']:
         raise InputError('witness representation changed')
     if not 0 <= len(entries) <= 12:
         raise InputError('finite model supports at most12 operations')
-    predecessors = [sum(1 << j for j, previous in enumerate(entries)
-                        if previous['response_ns'] is not None and previous['response_ns'] < entry['invocation_ns']) for entry in entries]
+    events = [dict(entry, kind='operation', index=index) for index, entry in enumerate(entries)]
+    for index, checkpoint in enumerate(checkpoints):
+        events.append(dict(kind='witness', index=index, invocation_ns=checkpoint['begin_ns'], response_ns=checkpoint['captured_ns'], state=checkpoint['state']))
+    predecessors = [sum(1 << j for j, previous in enumerate(events)
+                        if previous['response_ns'] is not None and previous['response_ns'] < entry['invocation_ns']) for entry in events]
     nodes = 0
     exhausted = False
     memo = set()
@@ -72,11 +75,18 @@ def check(initial, entries, final, *, search_nodes=100000):
         if signature in memo:
             return None
         memo.add(signature)
-        if mask == (1 << len(entries)) - 1:
+        if mask == (1 << len(events)) - 1:
             return path if signature[1] == target else None
-        for i, entry in enumerate(entries):
+        for i, entry in enumerate(events):
             bit = 1 << i
             if mask & bit or predecessors[i] & ~mask:
+                continue
+            if entry['kind'] == 'witness':
+                if normalized(state) != normalized(entry['state']):
+                    continue
+                witness = search(mask | bit, state, path + [dict(witness=entry['index'], disposition='native-read')])
+                if witness is not None:
+                    return witness
                 continue
             if entry['response_ns'] is None:
                 witness = search(mask | bit, state, path + [dict(index=i, disposition='omitted')])

@@ -20,9 +20,10 @@ def witness_rows(state):
     return {table: sorted(state[table], key=encode) for table in ('accounts', 'orders', 'effects', 'inbox')}
 
 
-def exhaustive(initial, entries, final):
+def exhaustive(initial, entries, final, checkpoints=()):
     if len(entries) > 8:
         raise ValueError('independent factorial oracle is limited to8 operations')
+    entries = list(entries) + [dict(kind='witness', call=c['begin_ns'], **{'return': c['captured_ns']}, state=c['state']) for c in checkpoints]
     pending = [i for i, entry in enumerate(entries) if entry['return'] is None]
     mandatory = set(range(len(entries))) - set(pending)
     attempts = 0
@@ -65,6 +66,9 @@ def exhaustive(initial, entries, final):
             states = [copy.deepcopy(initial)]
             for index in order:
                 entry = entries[index]
+                if entry.get('kind') == 'witness':
+                    states = [state for state in states if witness_rows(state) == witness_rows(entry['state'])]
+                    continue
                 next_states = []
                 for state in states:
                     if entry['return'] is not None:
@@ -94,6 +98,7 @@ def consume(directory):
     prefixes = []
     total = 0
     final = None
+    checkpoints = []
     for wave in range(len(declared['waves'])):
         witness = json.loads((directory / f'witness-{wave:04d}.json').read_bytes())
         for op in declared['waves'][wave]['operations']:
@@ -114,7 +119,9 @@ def consume(directory):
             entries.append(dict(op=op, call=invocation['invocation_ns'], return_=observation['response_ns'], status=observation['status'], raw=raw))
             entries[-1]['return'] = entries[-1].pop('return_')
         final = witness['state']
-        prefixes.append(exhaustive(initial, entries, final))
+        fence = json.loads((directory / f'control-{2+2*wave:04d}.observation.json').read_bytes())['response_ns']
+        checkpoints.append(dict(begin_ns=fence, captured_ns=witness['captured_ns'], state=final))
+        prefixes.append(exhaustive(initial, entries, final, checkpoints))
     report = json.loads((directory / 'report.json').read_bytes())
     first_invalid = next((i for i, p in enumerate(prefixes) if p['status'] == 'COUNTEREXAMPLE'), None)
     truth = 'PASS' if first_invalid is None else 'COUNTEREXAMPLE'

@@ -3,7 +3,7 @@
 ApiAtomicProbe records concurrent HTTP retries against an explicitly disposable
 order/balance application and checks whether one finite history can obey its
 declared idempotency model. Native SQLite accounts, orders, effects and inbox
-rows must agree with an admissible real-time linearization; identical HTTP
+rows at every captured prefix must agree with one admissible real-time linearization; identical HTTP
 responses alone do not establish that only one order was created.
 
 ```shell

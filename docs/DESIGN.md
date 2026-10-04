@@ -39,13 +39,15 @@ the business operation. Independent SQL witness time after quiescence bounds
 every pending operation: it may be omitted or legally complete at most once,
 but cannot invent state outside the terminal accounts/inbox/orders/effects.
 Completed return before another call constrains real-time order. Every captured
-prefix is checked from the same initial state and its own terminal SQL view.
+prefix is checked from the same initial state with **all** its prior SQL views
+as mandatory read events in one shared linearization. Pending choices cannot
+change incompatibly between individually plausible prefix explanations.
 Control receipts are independently length/hash/identity checked: initial quiesce
 precedes the initial view, resume precedes each wave invocation, every operation
 observation precedes terminal quiesce, and its actual return precedes the SQL
 capture. No final-index shortcut replaces the maximum of a concurrent wave.
 
-Search is memoized exhaustive DFS over eligible operations, legal pending
+Search is memoized exhaustive DFS over eligible operations and native read events, legal pending
 alternatives and omitted pending branches. A completed operation must match its
 actual complete response bytes. Unknown pending new order ids come only from
 matching native terminal orders. Exact final full-table equality is required.

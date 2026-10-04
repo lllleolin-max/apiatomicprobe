@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 from apiatomicprobe import InputError, analyze, collect
+from apiatomicprobe.model import check
 from apiatomicprobe.lab import Lab
 from apiatomicprobe.pilot import operation, plan
 from apiatomicprobe.protocol import canonical, parse, preflight, snapshot, validate_plan
@@ -116,6 +117,32 @@ class ProbeTests(unittest.TestCase):
         for allowance in (size - 1, size, size + 1):
             result = self.actual('atomic', [[operation()]], max_response_bytes=allowance)
             self.assertEqual(result['status'], 'UNKNOWN' if allowance < size else 'PASS')
+
+    def test_pending_must_share_one_explanation_across_native_reads(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with Lab(root / 'app.db') as app:
+                collect(app.url, app.database, app.nonce, plan([[operation(drop_ack=True)], [operation()]]), root / 'records', authorized=True)
+            directory = root / 'records'
+            initial = json.loads((directory / 'initial.json').read_bytes())['state']
+            first = json.loads((directory / 'witness-0000.json').read_bytes())
+            final = json.loads((directory / 'witness-0001.json').read_bytes())
+            changed = copy.deepcopy(final['state'])
+            changed['orders'][0]['amount'] = 200; changed['effects'][0]['delta'] = -200
+            changed['accounts'][0]['balance'] = 9800
+            op = operation(amount=200)
+            from apiatomicprobe.protocol import request_body, sha
+            changed['inbox'][0]['body_sha256'] = sha(request_body(op))
+            response = canonical(dict(order_id='ord-00000001', tenant='alpha', sku='widget', amount=200))
+            changed['inbox'][0]['response'] = response.decode()
+            first_inv = json.loads((directory / 'op-0000.invocation.json').read_bytes())
+            second_inv = json.loads((directory / 'op-0001.invocation.json').read_bytes())
+            second_obs = json.loads((directory / 'op-0001.observation.json').read_bytes())
+            entries = [dict(operation=operation(drop_ack=True), invocation_ns=first_inv['invocation_ns'], response_ns=None, status=None, response_hex=''),
+                       dict(operation=op, invocation_ns=second_inv['invocation_ns'], response_ns=second_obs['response_ns'], status=201, response_hex=response.hex())]
+            checkpoints = [dict(state=first['state'], begin_ns=first['captured_ns'], captured_ns=first['captured_ns']),
+                           dict(state=changed, begin_ns=final['captured_ns'], captured_ns=final['captured_ns'])]
+            self.assertEqual(check(initial, entries, changed, checkpoints=checkpoints)['status'], 'COUNTEREXAMPLE')
 
 
 if __name__ == '__main__':
