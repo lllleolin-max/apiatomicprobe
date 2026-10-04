@@ -111,6 +111,12 @@ class ProbeTests(unittest.TestCase):
             path.write_bytes(b'{')
             self.assertEqual(analyze(directory)['status'], 'UNKNOWN')
 
+    def test_known_response_cap_is_unknown_at_actual_bytes_minus_one(self):
+        size = len(canonical(dict(order_id='ord-00000001', tenant='alpha', sku='widget', amount=100)))
+        for allowance in (size - 1, size, size + 1):
+            result = self.actual('atomic', [[operation()]], max_response_bytes=allowance)
+            self.assertEqual(result['status'], 'UNKNOWN' if allowance < size else 'PASS')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -67,6 +67,9 @@ equal to the full preregistered plan and client end time after captures. Marker
 existence alone is insufficient; malformed partial markers and over-allowance
 completion are UNKNOWN, contradictory typed counts refuse.
 An insufficient supported response (unexpected status/encoding) is UNKNOWN.
+Known unsupported framing/byte-cap/parser observations are also UNKNOWN; they
+are not erased into the transport-lost-ACK branch to invent a supported response
+from SQL. A genuine network timeout/closed socket retains its pending semantics.
 
 Trusted files/host may be corrupted detectably, but this is not a hostile
 filesystem race sandbox or a signature-based evidence authenticity service.

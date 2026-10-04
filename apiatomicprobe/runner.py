@@ -222,8 +222,12 @@ def analyze(directory):
                     validate_response(obs['status'], raw)
                 except InputError:
                     unknown = 'completed HTTP response outside supported order-lab semantics'
+                if obs['error'] is not None:
+                    raise InputError('completed response also claims an observation failure')
             elif obs['status'] is not None or raw or not isinstance(obs['error'], str):
                 raise InputError('inconsistent pending observation')
+            elif obs['error'].startswith(('InputError:', 'BadStatusLine:', 'IncompleteRead:', 'LineTooLong:', 'HTTPException:')):
+                unknown = 'observed HTTP protocol/framing/byte allowance is outside supported semantics'
             entries.append(dict(operation=op, invocation_ns=inv['invocation_ns'], response_ns=obs['response_ns'], status=obs['status'], response_hex=raw.hex()))
         witness = read_json(directory / f'witness-{wave_index:04d}.json')
         keys(witness, ('state', 'captured_ns', 'operations'))

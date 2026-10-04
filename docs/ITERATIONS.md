@@ -42,3 +42,20 @@ over-total-time completion UNKNOWN. An interrupted malformed marker also stays
 UNKNOWN. Actual collection-derived tests cover counts±1/bool and hypothetical
 completion time deadline±1/equality without portraying edited timing as a lab
 speed result. The original unchanged before/after probe is recorded externally.
+
+## Round3: known unsupported protocol was mistaken for lost ACK
+
+Before baseline4d (and round2 immutable ordinary wheel),
+`probe_response_cap.py` submits a real order with max_response_bytes1. The actual
+native cached201 body is72 bytes. Client detects its known oversized HTTP
+Content-Length and records InputError framing/byte allowance unsupported. No
+record is modified, and an order actually commits. Reanalysis incorrectly treats
+this known unsupported-protocol observation as mere network ACK loss, invents a
+legal201 from native SQL, and returns PASS/CLI0. The original unsupported-response
+UNKNOWN promise is violated; this finding was implementation self-review.
+
+Correction keeps known InputError/framing parser failures UNKNOWN rather than
+an unconstrained pending response. Genuine timeout/socket ACK loss remains
+pending and can still PASS with a matching witnessed completion. Completed
+responses cannot also claim a failure. Actual response bytes-1/equal/+1 tests
+and unchanged original72-byte/1-cap ordinary-wheel probe verify the distinction.
